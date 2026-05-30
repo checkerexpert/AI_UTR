@@ -1,0 +1,6 @@
+{
+  "name": "Payment Slip Scanner",
+  "description": "Premium dark-theme payment slip scanner for instant OCR of receipts including UPI, PhonePe, GPay, Paytm, bank transfers with automated UTR, amount, and ID detection, copy-optimized for Google Sheets pasting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
