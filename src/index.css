@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", Courier, monospace;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+/* Custom background grid & sleek glowing animations */
+@layer base {
+  body {
+    background-color: #000000;
+    overflow-x: hidden;
+  }
+}
+
+.neon-border {
+  border: 1px solid #00FF00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.15);
+}
+
+.neon-border-glow {
+  border: 1px solid #00FF00;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.25), inset 0 0 10px rgba(0, 255, 0, 0.05);
+}
+
+.neon-text {
+  color: #00FF00;
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.4);
+}
+
+.mono {
+  font-family: "JetBrains Mono", Courier, monospace;
+}
+
+.glossy-btn {
+  background: linear-gradient(180deg, #2a2a2a 0%, #050505 100%);
+  border: 1px solid #444;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.glossy-btn:hover {
+  background: linear-gradient(180deg, #333333 0%, #0a0a0a 100%);
+  border-color: #555;
+}
+
+.glossy-btn:active {
+  background: linear-gradient(180deg, #111111 0%, #000000 100%);
+  transform: scale(0.99);
+}
+
+.upload-dash {
+  border: 2px dashed #3a3a3a;
+  background: rgba(20, 20, 20, 0.5);
+}
+
+.card-gradient {
+  background: linear-gradient(145deg, #1c1c1c 0%, #0a0a0a 100%);
+  border: 1px solid #3a3a3a;
+}
+
