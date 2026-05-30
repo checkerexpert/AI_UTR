@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Background circle/canvas -->
+  <rect x="0" y="0" width="512" height="512" fill="#000000" rx="128"/>
+  
+  <!-- Outer Glow Ring -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#00ff66" stroke-width="6" opacity="0.15"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#00ff66" stroke-width="2" opacity="0.3" stroke-dasharray="8,8"/>
+  
+  <!-- Main Emblem Group -->
+  <g transform="translate(128, 128)">
+    <!-- Base Shield/Hexagon in Neon Green -->
+    <path d="M128 16 L224 64 L224 160 L128 224 L32 160 L32 64 Z" fill="none" stroke="#00ff66" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Shield Accent Glow -->
+    <path d="M128 32 L208 72 L208 148 L128 204 L48 148 L48 72 Z" fill="none" stroke="#00ff66" stroke-width="2" opacity="0.5"/>
+    
+    <!-- Scan Beam / Document Indicator -->
+    <line x1="60" y1="120" x2="196" y2="120" stroke="#00ff66" stroke-width="16" stroke-linecap="round"/>
+    
+    <!-- Success Verification Checkmark -->
+    <path d="M80 110 L115 145 L180 80" fill="none" stroke="#00ff66" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Stylized Branding Overlay text indicator -->
+  <text x="256" y="440" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="28" font-weight="900" fill="#00ff66" text-anchor="middle" letter-spacing="4">MAX OFFICIAL</text>
+</svg>
