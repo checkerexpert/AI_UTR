@@ -74,7 +74,7 @@ If something cannot be detected, return empty strings. Let's do your best to sca
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents: [
         {
           inlineData: {
