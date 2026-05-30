@@ -14,7 +14,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 
 // 🌐 🟢 আপনার নতুন লাইভ স্পেসের সঠিক FastAPI এন্ডপয়েন্ট
-const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space";
+const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
   try {
