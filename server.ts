@@ -10,14 +10,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// ১৫এমবি লিমিট, যাতে হাই কোয়ালিটি ইমেজ রিজেক্ট না হয়
 app.use(express.json({ limit: "15mb" }));
 
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
   try {
-    // যেকোনো নামেই ইমেজ আসুক না কেন
     let base64Image = req.body.image || req.body.file || req.body.img || req.body.base64;
 
     if (!base64Image) {
@@ -35,51 +33,38 @@ app.post("/api/scan", async (req, res) => {
     });
 
     if (!hfResponse.ok) {
-      throw new Error(`Hugging Face status: ${hfResponse.status}`);
+      throw new Error(`Hugging Face responded with status: ${hfResponse.status}`);
     }
 
     const hfData: any = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
     
-    // UTR এবং Amount বের করার লজিক
-    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction)[:\s]*([A-Z0-9]{10,25})/i);
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs)[:\s]*([0-9,.]+)/i);
+    // কনসোলে চেক করার জন্য - রেন্ডার লগে গিয়ে দেখো কি টেক্সট পড়ছে
+    console.log("OCR Extracted Result:", rawResult);
+
+    // 🔍 শক্তিশালী Regex লজিক:
+    // UTR: ১২-২২ ডিজিটের যেকোনো নাম্বার
+    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Reference|Number)[:\s\n]*([A-Z0-9]{10,25})/i);
+    
+    // Amount: Amount/Total/Rs এর পরে থাকা সংখ্যা (কমা বা ডট সহ)
+    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid|Amount\s*Total)[:\s\n]*([0-9,]+(?:\.[0-9]{2})?)/i);
     
     const utr = utrMatch ? utrMatch[1] : "000000000000";
-    const amount = amountMatch ? amountMatch[1] : "0.00";
+    const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0.00"; // কমা থাকলে তা সরিয়ে সংখ্যা বানানো হয়েছে
 
-    // 🎯 সব সম্ভাব্য কি-ওয়ার্ড একসাথে পাঠানো হচ্ছে যেন ফ্রন্টএন্ড রিজেক্ট করতে না পারে
     const responsePayload = {
       status: "success",
-      success: true,
       result: rawResult,
-      text: rawResult,
-      extracted_text: rawResult,
       utr: utr,
-      utr_number: utr,
-      utrNumber: utr,
       amount: amount,
-      total_amount: amount,
-      totalAmount: amount,
-      data: {
-        utr: utr,
-        amount: amount,
-        utr_number: utr,
-        total_amount: amount
-      }
+      data: { utr: utr, amount: amount }
     };
 
     return res.json(responsePayload);
 
   } catch (error: any) {
     console.error("Master Server Error:", error);
-    // এরর আসলেও জেনুইন একটা JSON রেসপন্স পাঠানো হচ্ছে যাতে ফ্রন্টএন্ড ক্রাশ না করে
-    return res.status(500).json({
-      status: "error",
-      error: error.message,
-      utr: "000000000000",
-      amount: "0.00"
-    });
+    return res.status(500).json({ status: "error", error: error.message });
   }
 });
 
