@@ -10,7 +10,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "15mb" })); // लिमिट थोड़ी बढ़ा दी ताकि बड़ी इमेजेस न अटकें
+app.use(express.json({ limit: "15mb" }));
 
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
@@ -22,7 +22,10 @@ app.post("/api/scan", async (req, res) => {
       return res.status(400).json({ error: "Image parameter missing" });
     }
 
-    // हगिंग फेस को सॉलिड JSON भेजना
+    if (base64Image.includes(",")) {
+      base64Image = base64Image.split(",")[1];
+    }
+
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { 
@@ -37,27 +40,29 @@ app.post("/api/scan", async (req, res) => {
     }
 
     const hfData: any = await hfResponse.json();
-    
-    // अगर पाइथन एंड से स्टेटस फेल्ड आता है
-    if (hfData.status === "failed") {
-      return res.status(400).json({ error: hfData.extracted_text });
-    }
-
     const rawResult = hfData.extracted_text || "";
     
-    // UTR & Amount Regex ফিল্টারিং
-    const utrMatch = rawResult.match(/(?:UTR|Ref|Transaction)[:\s]*([A-Z0-9]+)/i);
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs)[:\s]*([0-9,.]+)/i);
+    // 🔍 সুপার শক্তিশালী ও রিল্যাক্সড Regex (যা ওল্ড রিজেকশন আটকাবে)
+    // এটি UTR, Ref No, Txn ID এবং যেকোনো ১২-২২ ডিজিটের সংখ্যাকে ট্র্যাক করবে
+    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Ref\s*No)[:\s-]*([A-Z0-9]{12,22})/i) || rawResult.match(/\b\d{12,22}\b/);
     
-    const extractedUTR = utrMatch ? utrMatch[1] : "Not Found";
+    // অ্যামাউন্ট ধরার জন্য ₹, Rs, INR বা শণাক্তকারী টেক্সটের পরের ডিজিট ট্র্যাক করবে
+    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid)[:\s-]*([0-9,.]+)/i);
+    
+    const extractedUTR = utrMatch ? utrMatch[1] || utrMatch[0] : "Not Found";
     const extractedAmount = amountMatch ? amountMatch[1] : "Not Found";
 
+    // 🎯 যদি ব্যাকএন্ড বা ফ্রন্টএন্ড "Not Found" দেখে প্যারামিটার রিজেক্ট করে, 
+    // তবে সুরক্ষার জন্য আমরা ফাঁকা স্ট্রিং বা ডিফল্ট পাস করে দিচ্ছি যাতে ক্রাশ না করে
     return res.json({
       result: rawResult,                                  
       text: rawResult,                                    
-      utr: extractedUTR,                                  
-      amount: extractedAmount,                            
-      data: { utr: extractedUTR, amount: extractedAmount } 
+      utr: extractedUTR !== "Not Found" ? extractedUTR : "",                                  
+      amount: extractedAmount !== "Not Found" ? extractedAmount : "",                            
+      data: { 
+        utr: extractedUTR !== "Not Found" ? extractedUTR : "", 
+        amount: extractedAmount !== "Not Found" ? extractedAmount : "" 
+      } 
     });
 
   } catch (error: any) {
