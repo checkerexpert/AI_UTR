@@ -1,0 +1,18 @@
+{
+  "short_name": "MAX SCAN",
+  "name": "MAX OFFICIAL Payment Slip Scanner",
+  "description": "Premium High-Precision Payment Slip Scanner with Automated UTR, Amount, and ID Extraction",
+  "icons": [
+    {
+      "src": "/launcher-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}
