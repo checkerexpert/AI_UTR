@@ -10,34 +10,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// ইমেজ ডাটা যেন মাঝপথে কেটে না যায় তাই ১০এমবি লিমিট
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "15mb" })); // लिमिट थोड़ी बढ़ा दी ताकि बड़ी इमेजेस न अटकें
 
-// তোমার হাগিং ফেস স্পেসের সঠিক এপিআই ইউআরএল
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
   try {
-    // ফ্রন্টএন্ড থেকে যেকোনো কি-ওয়ার্ডে বেস৬৪ আসুক, এটি রিসিভ করবে
     let base64Image = req.body.image || req.body.file || req.body.img || req.body.base64;
 
     if (!base64Image) {
       return res.status(400).json({ error: "Image parameter missing" });
     }
 
-    // ১. হাগিং ফেস পাইথন কোডের সুবিধার্থে বেস৬৪ হেডার ক্লিনিং
-    if (base64Image.includes(",")) {
-      base64Image = base64Image.split(",")[1];
-    }
-
-    // ২. হাগিং ফেসের JSON API-তে ঠিক যেভাবে ডাটা দরকার, সেভাবে পাঠানো হচ্ছে
+    // हगिंग फेस को सॉलिड JSON भेजना
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: JSON.stringify({ image: base64Image }) 
+      body: JSON.stringify({ image: base64Image })
     });
 
     if (!hfResponse.ok) {
@@ -46,17 +38,20 @@ app.post("/api/scan", async (req, res) => {
 
     const hfData: any = await hfResponse.json();
     
-    // ৩. হাগিং ফেসের Python App থেকে আসা আসল টেক্সট রিসিভ করা
+    // अगर पाइथन एंड से स्टेटस फेल्ड आता है
+    if (hfData.status === "failed") {
+      return res.status(400).json({ error: hfData.extracted_text });
+    }
+
     const rawResult = hfData.extracted_text || "";
     
-    // 🔍 টেক্সট থেকে UTR এবং Amount ফিল্টার করার রেগুলার এক্সপ্রেশন
+    // UTR & Amount Regex ফিল্টারিং
     const utrMatch = rawResult.match(/(?:UTR|Ref|Transaction)[:\s]*([A-Z0-9]+)/i);
     const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs)[:\s]*([0-9,.]+)/i);
     
     const extractedUTR = utrMatch ? utrMatch[1] : "Not Found";
     const extractedAmount = amountMatch ? amountMatch[1] : "Not Found";
 
-    // 🎯 ফ্রন্টএন্ডের পুরোনো ৫টি ফরমেটই এখানে দেওয়া হলো যাতে ফ্রন্টএন্ড রিজেক্ট না হয়
     return res.json({
       result: rawResult,                                  
       text: rawResult,                                    
@@ -71,6 +66,5 @@ app.post("/api/scan", async (req, res) => {
   }
 });
 
-// 🚀 রেন্ডারের ডাইনামিক পোর্টের সাথে কানেক্ট হওয়ার জন্য (ড্যাশবোর্ডের ম্যানুয়াল PORT ডিলিট করার পর এটি অটো কাজ করবে)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Master Server running on port ${PORT}`));
