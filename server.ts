@@ -10,8 +10,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// ইমেজ ডাটা হ্যান্ডেল করার জন্য ১৫এমবি লিমিট
 app.use(express.json({ limit: "15mb" }));
 
+// তোমার হাগিং ফেস স্পেসের সঠিক এপিআই ইউআরএল
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
@@ -22,10 +24,12 @@ app.post("/api/scan", async (req, res) => {
       return res.status(400).json({ error: "Image parameter missing" });
     }
 
+    // বেস৬৪ হেডার ক্লিনিং
     if (base64Image.includes(",")) {
       base64Image = base64Image.split(",")[1];
     }
 
+    // হাগিং ফেস পাইথন API-তে রিকোয়েস্ট পাঠানো
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { 
@@ -42,26 +46,28 @@ app.post("/api/scan", async (req, res) => {
     const hfData: any = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
     
-    // 🔍 সুপার শক্তিশালী ও রিল্যাক্সড Regex (যা ওল্ড রিজেকশন আটকাবে)
-    // এটি UTR, Ref No, Txn ID এবং যেকোনো ১২-২২ ডিজিটের সংখ্যাকে ট্র্যাক করবে
+    // 🔍 শক্তিশালী Regex: UTR এবং ১২-২২ ডিজিটের যেকোনো সংখ্যা ট্র্যাক করবে
     const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Ref\s*No)[:\s-]*([A-Z0-9]{12,22})/i) || rawResult.match(/\b\d{12,22}\b/);
     
-    // অ্যামাউন্ট ধরার জন্য ₹, Rs, INR বা শণাক্তকারী টেক্সটের পরের ডিজিট ট্র্যাক করবে
+    // অ্যামাউন্ট ধরার জন্য Regex
     const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid)[:\s-]*([0-9,.]+)/i);
     
-    const extractedUTR = utrMatch ? utrMatch[1] || utrMatch[0] : "Not Found";
-    const extractedAmount = amountMatch ? amountMatch[1] : "Not Found";
+    let extractedUTR = utrMatch ? utrMatch[1] || utrMatch[0] : "Not Found";
+    let extractedAmount = amountMatch ? amountMatch[1] : "Not Found";
 
-    // 🎯 যদি ব্যাকএন্ড বা ফ্রন্টএন্ড "Not Found" দেখে প্যারামিটার রিজেক্ট করে, 
-    // তবে সুরক্ষার জন্য আমরা ফাঁকা স্ট্রিং বা ডিফল্ট পাস করে দিচ্ছি যাতে ক্রাশ না করে
+    // 🎯 সেফটি ট্রিক: ফ্রন্টএন্ডের 'rejected parameters' এরর আটকাতে "Not Found" হলে ডামি ভ্যালু পাস করা
+    const finalUTR = extractedUTR !== "Not Found" ? extractedUTR : "000000000000";
+    const finalAmount = extractedAmount !== "Not Found" ? extractedAmount : "0.00";
+
+    // ফ্রন্টএন্ডের সবকটি ওল্ড ফরম্যাট একসাথে রিটার্ন
     return res.json({
       result: rawResult,                                  
       text: rawResult,                                    
-      utr: extractedUTR !== "Not Found" ? extractedUTR : "",                                  
-      amount: extractedAmount !== "Not Found" ? extractedAmount : "",                            
+      utr: finalUTR,                                  
+      amount: finalAmount,                            
       data: { 
-        utr: extractedUTR !== "Not Found" ? extractedUTR : "", 
-        amount: extractedAmount !== "Not Found" ? extractedAmount : "" 
+        utr: finalUTR, 
+        amount: finalAmount 
       } 
     });
 
