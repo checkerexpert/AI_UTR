@@ -9,10 +9,9 @@ const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
   try {
-    const { image, userId } = req.body;
-    if (!image) return res.status(400).json({ success: false, error: "Image missing" });
-
+    const { image } = req.body;
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
+
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -22,27 +21,30 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 1. UTR: Find all potential 12-20 digit IDs
-    const allIds = rawResult.match(/\b\d{12,20}\b/g) || [];
-    const finalUtr = allIds.length > 0 ? allIds[0] : "NOT_FOUND";
-
-    // 2. Amount: Intelligent extraction logic
-    // We filter numbers that are potentially amounts (e.g., xxx.xx)
-    const allNumbers = rawResult.match(/\d{1,3}(,\d{3})*(\.\d{1,2})/g) || [];
+    // 🎯 GEMINI-STYLE LOGIC (Logic for Extraction)
     
-    // Sort all found numbers and take the largest one as the transaction amount
-    const finalAmount = allNumbers.length > 0 
-      ? allNumbers
-          .map(n => parseFloat(n.replace(/,/g, '')))
-          .sort((a, b) => b - a)[0]
-          .toFixed(2)
-      : "0.00";
+    // 1. UTR Logic: 12-20 digits only, filtering out dates or other numbers
+    const utrRegex = /\b\d{12,20}\b/;
+    const utrMatch = rawResult.match(utrRegex);
+    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
+
+    // 2. Amount Logic: Looking specifically for currency patterns
+    // This finds numbers with 2 decimals, common in payment slips
+    const amountRegex = /(\d{1,3}(?:,\d{3})*\.\d{2})/;
+    const amountMatches = rawResult.match(new RegExp(amountRegex, 'g')) || [];
+    
+    // Clean and find the most logical amount (highest value usually)
+    const amounts = amountMatches
+      .map(n => parseFloat(n.replace(/,/g, '')))
+      .filter(n => n > 0);
+    
+    const finalAmount = amounts.length > 0 ? Math.max(...amounts).toFixed(2) : "0.00";
 
     return res.json({
       success: true,
       utr: finalUtr,
       amount: finalAmount,
-      debug: rawResult // Important for debugging
+      debug: rawResult // যদি এখনো ভুল হয়, এই debug টেক্সটটিই সমস্যা
     });
 
   } catch (error: any) {
@@ -51,4 +53,4 @@ app.post("/api/scan", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running`));
