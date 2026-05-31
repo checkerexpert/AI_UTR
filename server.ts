@@ -12,8 +12,8 @@ app.post("/api/scan", async (req, res) => {
     if (!key) throw new Error("API Key missing");
     const genAI = new GoogleGenerativeAI(key);
     
-    // এই নামটাই সবচেয়ে বেশি কাজ করে, কোনো এক্সট্রা কিছু ছাড়া
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // এই মডেলটি বর্তমান ভার্সনে সবথেকে বেশি স্টেবল
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
     
     const imgData = req.body.image.split(",")[1];
     const prompt = "Extract UTR and Amount. Return JSON in this format: {\"utr\": \"value\", \"amount\": \"value\"}";
