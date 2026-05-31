@@ -11,9 +11,7 @@ app.post("/api/scan", async (req, res) => {
   try {
     const { image, userId } = req.body;
 
-    if (!image) {
-      return res.status(400).json({ success: false, error: "Image missing" });
-    }
+    if (!image) return res.status(400).json({ success: false, error: "Image missing" });
 
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
 
@@ -26,31 +24,33 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 🎯 মাস্টার Regex লজিক
+    // 1. UTR Logic: 12 থেকে 20 ডিজিটের লম্বা নাম্বার (সবচেয়ে সঠিক)
+    const utrMatch = rawResult.match(/\b\d{12,20}\b/);
     
-    // ১. UTR: যেকোনো ১২ থেকে ২০ ডিজিটের সংখ্যা খুঁজবে (যেখানে UTR বা Ref বা Txn লেখা থাকতে পারে)
-    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Reference)[:\s\n]*(\d{12,20})/i);
-    
-    // ২. Amount: Amount/Total/Rs/INR/₹ এর পরে থাকা সংখ্যা (যেমন: 500.00 বা 1,500.00)
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid|Amt|₹)[:\s\n]*([\d,]+\.\d{2})/i);
+    // 2. Amount Logic: এটি ৩টি ধাপ চেক করবে
+    // ধাপ A: 'Amount' বা 'Total' এর পরে সংখ্যা
+    // ধাপ B: 'Rs' বা '₹' এর পরে সংখ্যা
+    // ধাপ C: যদি কি-ওয়ার্ড না থাকে, তবে সরাসরি দশমিকসহ সংখ্যা (যেমন: 500.00)
+    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Amt|Paid|Value|Price)[:\s\n]*([\d,]+\.\d{2})/i) 
+                     || rawResult.match(/(?:Rs\.?|₹)\s?([\d,]+\.\d{2})/i)
+                     || rawResult.match(/([\d,]+\.\d{2})/);
 
-    const finalUtr = utrMatch ? utrMatch[1] : "NOT_FOUND";
-    const finalAmount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0";
+    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
+    const finalAmount = amountMatch ? amountMatch[1] || amountMatch[0] : "0";
 
-    // 🎯 ফ্রন্টএন্ডের সব শর্ত পূরণ করা রেসপন্স
+    // ক্লিন অ্যামাউন্ট (কমা সরানো)
+    const cleanedAmount = finalAmount.replace(/,/g, '');
+
     return res.json({
       success: true,
       utr: finalUtr,
-      amount: finalAmount,
+      amount: cleanedAmount,
       userId: userId || "N/A",
-      debug: rawResult // ফ্রন্টএন্ডে বা লগে দেখতে পারবে OCR কী পড়েছে
+      debug: rawResult 
     });
 
   } catch (error: any) {
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
