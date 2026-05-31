@@ -1,57 +1,48 @@
 import express from "express";
 import cors from "cors";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
 
-const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
+// 1. Google AI Studio থেকে কি (API Key) নিয়ে এখানে বসাও
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 app.post("/api/scan", async (req, res) => {
   try {
     const { image } = req.body;
+    if (!image) return res.status(400).json({ success: false, error: "Image missing" });
+
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
-
-    const hfResponse = await fetch(HF_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64Image })
-    });
-
-    const hfData = await hfResponse.json();
-    const rawResult = hfData.extracted_text || "";
-
-    // 1. UTR Logic: 12-20 digits
-    const utrMatch = rawResult.match(/\b\d{12,20}\b/);
-    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
-
-    // 2. Keyword-based Amount Logic: (এই লজিকটি কি-ওয়ার্ডের আশেপাশে সংখ্যা খোঁজে)
-    // এটি 'Amount', 'Total', 'Paid' বা 'Rs' এর আশেপাশে থাকা সংখ্যাকে প্রায়োরিটি দেবে
-    const amountRegex = /(?:Amount|Total|Paid|Rs|INR)[:\s]*(\d{1,3}(?:,\d{3})*\.\d{2})/i;
-    const match = rawResult.match(amountRegex);
     
-    let finalAmount = "0.00";
-    if (match && match[1]) {
-      finalAmount = match[1].replace(/,/g, '');
-    } else {
-      // যদি কি-ওয়ার্ড না পায়, তবেই শুধু সবচেয়ে বড় সংখ্যাটি নেবে
-      const allNumbers = rawResult.match(/\d{1,3}(?:,\d{3})*\.\d{2}/g) || [];
-      if (allNumbers.length > 0) {
-        finalAmount = Math.max(...allNumbers.map(n => parseFloat(n.replace(/,/g, '')))).toFixed(2);
-      }
-    }
+    // 2. Gemini 1.5 Flash মডেল ব্যবহার করছি (এটি ফাস্ট এবং প্রতিদিন ১৫০০টি ফ্রি)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    return res.json({
-      success: true,
-      utr: finalUtr,
-      amount: finalAmount,
-      debug: rawResult
-    });
+    // 3. পারফেক্ট প্রম্পট যা স্লিপের সবকিছু নিখুঁতভাবে বুঝবে
+    const prompt = `Analyze this payment receipt.
+    Extract the following two fields:
+    1. UTR (Transaction ID): Look for a 12 to 20 digit number.
+    2. Amount: The final payment amount.
+    Return strictly in JSON format: {"utr": "value", "amount": "value"}.
+    If not found, return "NOT_FOUND" or "0.00". Do not add any conversational text.`;
+
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: base64Image, mimeType: "image/jpeg" } }
+    ]);
+
+    const text = result.response.text();
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleanJson);
+
+    return res.json({ success: true, ...data });
 
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: "Scan Failed" });
+    console.error("Gemini Error:", error);
+    return res.status(500).json({ success: false, error: "AI Scan Failed" });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running`));
+app.listen(PORT, () => console.log(`🚀 Gemini Server running on port ${PORT}`));
