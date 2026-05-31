@@ -11,10 +11,13 @@ app.post("/api/scan", async (req, res) => {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error("API Key missing");
     const genAI = new GoogleGenerativeAI(key);
-    // মডেলের নাম পরিবর্তন করে 'gemini-1.5-flash' এর জায়গায় এটি ব্যবহার করছি
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+    
+    // এই নামটাই সবচেয়ে বেশি কাজ করে, কোনো এক্সট্রা কিছু ছাড়া
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
     const imgData = req.body.image.split(",")[1];
     const prompt = "Extract UTR and Amount. Return JSON in this format: {\"utr\": \"value\", \"amount\": \"value\"}";
+    
     const result = await model.generateContent([prompt, { inlineData: { data: imgData, mimeType: "image/jpeg" } }]);
     let text = result.response.text();
     text = text.split("```json").join("").split("```").join("").trim();
