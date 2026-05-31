@@ -1,9 +1,9 @@
 import express from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 
-// CORS ম্যানুয়াল হেডার (যা অলরেডি কাজ করছে)
+// CORS ম্যানুয়াল হেডার (যা পারফেক্টলি কাজ করছে)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -21,22 +21,29 @@ app.post('/api/scan', async (req, res) => {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error("API Key missing");
 
-    // এখানে apiVersion: 'v1' দিয়ে স্টেবল ভার্সন ফোর্স করা হলো
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel(
-      { model: 'gemini-1.5-flash' },
-      { apiVersion: 'v1' }
-    );
+    // নতুন অফিশিয়াল গুগল জেন-এআই ক্লায়েন্ট ইনিশিয়েট করা
+    const ai = new GoogleGenAI({ apiKey: key });
 
     const imgData = req.body.image.split(',')[1];
     const prompt = 'Extract UTR and Amount. Return ONLY JSON like {"utr": "value", "amount": "value"}';
 
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { data: imgData, mimeType: 'image/jpeg' } }
-    ]);
+    // নতুন মেথড: ai.models.generateContent
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: [
+        prompt,
+        {
+          inlineData: {
+            data: imgData,
+            mimeType: 'image/jpeg'
+          }
+        }
+      ]
+    });
 
-    let text = result.response.text();
+    let text = response.text;
+    if (!text) throw new Error("No text returned from Gemini");
+    
     text = text.split('```json').join('').split('```').join('').trim();
     
     res.json({ success: true, data: JSON.parse(text) });
