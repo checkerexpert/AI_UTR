@@ -19,7 +19,7 @@ app.post("/api/scan", async (req, res) => {
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = "Analyze this payment receipt. Extract UTR (12-20 digits) and Amount. Return ONLY JSON format: {'utr': 'value', 'amount': 'value'}. If not found, return {'utr': 'NOT_FOUND', 'amount': '0.00'}. No extra text.";
+    const prompt = "Extract UTR and Amount from this receipt. Return ONLY JSON like this: {'utr': '123', 'amount': '100.00'}";
 
     const result = await model.generateContent([
       prompt,
@@ -27,16 +27,13 @@ app.post("/api/scan", async (req, res) => {
     ]);
 
     const text = result.response.text();
-    // এখানে কোনো রেগুলার এক্সপ্রেশন ব্যবহার করা হয়নি যা ভেঙে যেতে পারে
-    const cleanJson = text.split("```")[1] ? text.split("
-```")[1].replace("json", "") : text;
+    const cleanText = text.replace(/```/g, "").replace("json", "").trim();
     
-    res.json({ success: true, ...JSON.parse(cleanJson.trim()) });
+    res.json({ success: true, ...JSON.parse(cleanText) });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "AI Scan Failed" });
+    res.status(500).json({ success: false, error: "Scan Failed" });
   }
 });
 
 const PORT = Number(process.env.PORT) || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`Server running`));
