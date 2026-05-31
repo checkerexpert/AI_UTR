@@ -1,5 +1,4 @@
 import express from 'express';
-import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 
@@ -19,33 +18,49 @@ app.use(express.json({ limit: '50mb' }));
 app.post('/api/scan', async (req, res) => {
   try {
     const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("API Key missing");
-
-    // নতুন অফিশিয়াল গুগল জেন-এআই ক্লায়েন্ট ইনিশিয়েট করা
-    const ai = new GoogleGenAI({ apiKey: key });
+    if (!key) throw new Error("API Key missing on server");
 
     const imgData = req.body.image.split(',')[1];
+    if (!imgData) throw new Error("Invalid image data");
+
     const prompt = 'Extract UTR and Amount. Return ONLY JSON like {"utr": "value", "amount": "value"}';
 
-    // নতুন মেথড: ai.models.generateContent
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: [
-        prompt,
-        {
-          inlineData: {
-            data: imgData,
-            mimeType: 'image/jpeg'
-          }
-        }
-      ]
-    });
+    // সরাসরি গুগলের অফিশিয়াল এন্ডপয়েন্টে রিকোয়েস্ট পাঠানো হচ্ছে
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: imgData
+                  }
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-    let text = response.text;
-    if (!text) throw new Error("No text returned from Gemini");
-    
+    const result: any = await response.json();
+
+    // গুগলের সরাসরি পাঠানো রেসপন্স থেকে টেক্সট বের করা
+    if (result.error) {
+      throw new Error(result.error.message || "Gemini API Error");
+    }
+
+    let text = result.candidates[0].content.parts[0].text;
     text = text.split('```json').join('').split('```').join('').trim();
-    
+
     res.json({ success: true, data: JSON.parse(text) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
