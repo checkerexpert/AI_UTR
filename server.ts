@@ -19,10 +19,7 @@ app.post("/api/scan", async (req, res) => {
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = `Analyze this payment receipt.
-    Extract the UTR (12-20 digits) and the Amount.
-    Return ONLY JSON format: {"utr": "value", "amount": "value"}.
-    If not found, return "NOT_FOUND" for utr and "0.00" for amount. Do not include any extra text or markdown formatting.`;
+    const prompt = "Analyze this payment receipt. Extract UTR (12-20 digits) and Amount. Return ONLY JSON format: {'utr': 'value', 'amount': 'value'}. If not found, return {'utr': 'NOT_FOUND', 'amount': '0.00'}. No extra text.";
 
     const result = await model.generateContent([
       prompt,
@@ -30,10 +27,11 @@ app.post("/api/scan", async (req, res) => {
     ]);
 
     const text = result.response.text();
-    const cleanJson = text.replace(/```json/g, "").replace(/
-```/g, "").trim();
+    // এখানে কোনো রেগুলার এক্সপ্রেশন ব্যবহার করা হয়নি যা ভেঙে যেতে পারে
+    const cleanJson = text.split("```")[1] ? text.split("
+```")[1].replace("json", "") : text;
     
-    res.json({ success: true, ...JSON.parse(cleanJson) });
+    res.json({ success: true, ...JSON.parse(cleanJson.trim()) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: "AI Scan Failed" });
