@@ -2,7 +2,7 @@ import express from 'express';
 
 const app = express();
 
-// CORS ম্যানুয়াল হেডার (যা পারফেক্টলি কাজ করছে)
+// CORS ম্যানুয়াল হেডার (যা অলরেডি সাকসেসফুলি কানেক্ট হচ্ছে)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -25,9 +25,9 @@ app.post('/api/scan', async (req, res) => {
 
     const prompt = 'Extract UTR and Amount. Return ONLY JSON like {"utr": "value", "amount": "value"}';
 
-    // সরাসরি গুগলের অফিশিয়াল এন্ডপয়েন্টে রিকোয়েস্ট পাঠানো হচ্ছে
+    // আমরা এখানে v1beta থেকে v1 এ শিফট করলাম এবং মডেলটি 'gemini-1.5-flash' রাখলাম যা v1 ইউআরএল-এ সাপোর্ট করে
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
       {
         method: 'POST',
         headers: {
@@ -53,9 +53,13 @@ app.post('/api/scan', async (req, res) => {
 
     const result: any = await response.json();
 
-    // গুগলের সরাসরি পাঠানো রেসপন্স থেকে টেক্সট বের করা
+    // গুগলের পাঠানো এরর ডিবাগ করার জন্য
     if (result.error) {
-      throw new Error(result.error.message || "Gemini API Error");
+      throw new Error(`Google API Error: ${result.error.message}`);
+    }
+
+    if (!result.candidates || !result.candidates[0]) {
+      throw new Error("No response from Gemini models");
     }
 
     let text = result.candidates[0].content.parts[0].text;
