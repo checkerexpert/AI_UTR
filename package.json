@@ -1,17 +1,13 @@
 {
   "name": "ai-scan",
   "version": "1.0.0",
-  "description": "UTR and Amount OCR Scanner using Gemini",
+  "description": "UTR and Amount OCR Scanner using Direct API Fetch",
   "main": "server.ts",
   "scripts": {
     "start": "tsx server.ts",
     "build": "echo 'No build step needed for tsx'"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@google/genai": "^0.1.1",
     "cors": "^2.8.5",
     "express": "^4.19.2"
   },
