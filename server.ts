@@ -1,72 +1,53 @@
 import express from "express";
-
 const app = express();
-
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-
 app.use(express.json({ limit: "15mb" }));
 
-const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
+// ... (হেডার সেকশন আগের মতোই থাকবে)
 
 app.post("/api/scan", async (req, res) => {
   try {
-    let base64Image = req.body.image || req.body.file || req.body.img || req.body.base64;
-
-    if (!base64Image) {
-      return res.status(400).json({ error: "Image parameter missing" });
-    }
-
-    if (base64Image.includes(",")) {
-      base64Image = base64Image.split(",")[1];
-    }
-
-    const hfResponse = await fetch(HF_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64Image })
-    });
-
-    if (!hfResponse.ok) {
-      throw new Error(`Hugging Face responded with status: ${hfResponse.status}`);
-    }
+    const { image } = req.body;
+    // ... (এপিআই কল লজিক আগের মতোই)
 
     const hfData: any = await hfResponse.json();
-    const rawResult = hfData.extracted_text || "";
-    
-    // কনসোলে চেক করার জন্য - রেন্ডার লগে গিয়ে দেখো কি টেক্সট পড়ছে
-    console.log("OCR Extracted Result:", rawResult);
+    const rawResult: string = hfData.extracted_text || "";
 
-    // 🔍 শক্তিশালী Regex লজিক:
-    // UTR: ১২-২২ ডিজিটের যেকোনো নাম্বার
-    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Reference|Number)[:\s\n]*([A-Z0-9]{10,25})/i);
-    
-    // Amount: Amount/Total/Rs এর পরে থাকা সংখ্যা (কমা বা ডট সহ)
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid|Amount\s*Total)[:\s\n]*([0-9,]+(?:\.[0-9]{2})?)/i);
-    
-    const utr = utrMatch ? utrMatch[1] : "000000000000";
-    const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0.00"; // কমা থাকলে তা সরিয়ে সংখ্যা বানানো হয়েছে
+    // 🎯 স্মার্ট ফিল্টারিং লজিক (Contextual Analysis)
+    const lines = rawResult.split(/\r?\n/);
+    let foundUtr = "Not Found";
+    let foundAmount = "0.00";
 
-    const responsePayload = {
+    lines.forEach(line => {
+      const lowerLine = line.toLowerCase();
+
+      // UTR এর জন্য: নির্দিষ্ট কী-ওয়ার্ডের পাশে থাকা ১২-২০ ডিজিট খুঁজবে
+      if (lowerLine.includes("utr") || lowerLine.includes("ref") || lowerLine.includes("txn")) {
+        const match = line.match(/\d{12,20}/);
+        if (match) foundUtr = match[0];
+      }
+
+      // অ্যামাউন্টের জন্য: শুধুমাত্র সেই সংখ্যা যেখানে কারেন্সি সিম্বল বা টোটাল লেখা আছে
+      if (lowerLine.includes("amount") || lowerLine.includes("total") || lowerLine.includes("rs")) {
+        const match = line.match(/[\d,]+\.\d{2}/);
+        if (match) foundAmount = match[0].replace(/,/g, '');
+      }
+    });
+
+    // সব চেক শেষেও যদি কিছু না পায়, তবে একটা লাস্ট রিসোর্ট
+    if (foundUtr === "Not Found") {
+       const globalMatch = rawResult.match(/\b\d{12,20}\b/);
+       if (globalMatch) foundUtr = globalMatch[0];
+    }
+
+    return res.json({
       status: "success",
-      result: rawResult,
-      utr: utr,
-      amount: amount,
-      data: { utr: utr, amount: amount }
-    };
+      utr: foundUtr,
+      amount: foundAmount,
+      // ফ্রন্টএন্ডে ডিবাগ করার জন্য পুরো রেজাল্টও পাঠাচ্ছি
+      debug_result: rawResult 
+    });
 
-    return res.json(responsePayload);
-
-  } catch (error: any) {
-    console.error("Master Server Error:", error);
-    return res.status(500).json({ status: "error", error: error.message });
+  } catch (e) {
+    res.status(500).json({ error: "Processing failed" });
   }
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Master Server running on port ${PORT}`));
