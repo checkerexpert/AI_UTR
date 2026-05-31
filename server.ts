@@ -12,7 +12,6 @@ app.post('/api/scan', async (req, res) => {
     if (!key) throw new Error("API Key missing");
     
     const genAI = new GoogleGenerativeAI(key);
-    // এখানে মডেলের নামের সাথে 'models/' যোগ করা হয়েছে যা এরর ফিক্স করবে
     const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
     
     const imgData = req.body.image.split(',')[1];
@@ -22,9 +21,13 @@ app.post('/api/scan', async (req, res) => {
       inlineData: {data: imgData, mimeType: 'image/jpeg'}
     }]);
     
-    const text = result.response.text().replace(/```json|
-```/g, '').trim();
-    res.json({success: true, data: JSON.parse(text)});
+    // কোনো রেগুলার এক্সপ্রেশন ছাড়া সহজ রিপ্লেস
+    let text = result.response.text();
+    text = text.split("```json").join("");
+    text = text.split("
+```").join("");
+    
+    res.json({success: true, data: JSON.parse(text.trim())});
   } catch (e: any) {
     res.status(500).json({error: e.message});
   }
