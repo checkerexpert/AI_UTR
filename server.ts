@@ -21,30 +21,31 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 🎯 GEMINI-STYLE LOGIC (Logic for Extraction)
+    // --- DEEP EXTRACTION LOGIC ---
     
-    // 1. UTR Logic: 12-20 digits only, filtering out dates or other numbers
-    const utrRegex = /\b\d{12,20}\b/;
-    const utrMatch = rawResult.match(utrRegex);
-    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
+    // 1. UTR: Searching for the most consistent long-digit sequence
+    // Most UTRs are 12 to 20 digits long.
+    const allIds = rawResult.match(/\b\d{12,20}\b/g) || [];
+    const finalUtr = allIds.length > 0 ? allIds[0] : "NOT_FOUND";
 
-    // 2. Amount Logic: Looking specifically for currency patterns
-    // This finds numbers with 2 decimals, common in payment slips
-    const amountRegex = /(\d{1,3}(?:,\d{3})*\.\d{2})/;
-    const amountMatches = rawResult.match(new RegExp(amountRegex, 'g')) || [];
+    // 2. Amount: We filter out non-amount numbers by looking for decimal points
+    // and then pick the largest numeric value found in the text.
+    const numberMatches = rawResult.match(/[\d,]+\.\d{1,2}/g) || [];
     
-    // Clean and find the most logical amount (highest value usually)
-    const amounts = amountMatches
-      .map(n => parseFloat(n.replace(/,/g, '')))
-      .filter(n => n > 0);
-    
-    const finalAmount = amounts.length > 0 ? Math.max(...amounts).toFixed(2) : "0.00";
+    let finalAmount = "0.00";
+    if (numberMatches.length > 0) {
+      // Clean and sort numbers to find the highest value (the transaction amount)
+      const cleanedNumbers = numberMatches.map(n => parseFloat(n.replace(/,/g, '')));
+      finalAmount = Math.max(...cleanedNumbers).toFixed(2);
+    }
+
+    // ----------------------------
 
     return res.json({
       success: true,
       utr: finalUtr,
       amount: finalAmount,
-      debug: rawResult // যদি এখনো ভুল হয়, এই debug টেক্সটটিই সমস্যা
+      debug: rawResult 
     });
 
   } catch (error: any) {
@@ -53,4 +54,4 @@ app.post("/api/scan", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running`));
+app.listen(PORT, () => console.log(`🚀 Master Logic Running on port ${PORT}`));
