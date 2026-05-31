@@ -24,27 +24,27 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 1. UTR Logic: 12 থেকে 20 ডিজিটের লম্বা নাম্বার (সবচেয়ে সঠিক)
+    // 1. UTR Logic: 12-20 ডিজিটের লম্বা সংখ্যা খুঁজে বের করা
     const utrMatch = rawResult.match(/\b\d{12,20}\b/);
     
-    // 2. Amount Logic: এটি ৩টি ধাপ চেক করবে
-    // ধাপ A: 'Amount' বা 'Total' এর পরে সংখ্যা
-    // ধাপ B: 'Rs' বা '₹' এর পরে সংখ্যা
-    // ধাপ C: যদি কি-ওয়ার্ড না থাকে, তবে সরাসরি দশমিকসহ সংখ্যা (যেমন: 500.00)
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Amt|Paid|Value|Price)[:\s\n]*([\d,]+\.\d{2})/i) 
-                     || rawResult.match(/(?:Rs\.?|₹)\s?([\d,]+\.\d{2})/i)
-                     || rawResult.match(/([\d,]+\.\d{2})/);
+    // 2. Amount Logic: এটি দশমিকের পর ১ বা ২ ঘর এবং কমা যুক্ত সংখ্যা খুঁজে নেবে
+    // Regex টি যেকোনো কি-ওয়ার্ড (Amount/Total/Rs/₹) এর পরে থাকা সংখ্যা ধরবে
+    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Amt|Paid|Value|Price|₹|Balance)[:\s\n]*([\d,]+(?:\.\d{1,2})?)/i) 
+                     || rawResult.match(/(?:Rs\.?|₹)\s?([\d,]+(?:\.\d{1,2})?)/i)
+                     || rawResult.match(/([\d,]+(?:\.\d{1,2})?)/);
 
     const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
-    const finalAmount = amountMatch ? amountMatch[1] || amountMatch[0] : "0";
-
-    // ক্লিন অ্যামাউন্ট (কমা সরানো)
-    const cleanedAmount = finalAmount.replace(/,/g, '');
+    
+    // অ্যামাউন্ট ক্লিন করা: কমা সরাচ্ছি এবং শেষে .00 যোগ করছি যদি দশমিক না থাকে
+    let amountStr = amountMatch ? (amountMatch[1] || amountMatch[0]).replace(/,/g, '') : "0.00";
+    if (!amountStr.includes('.')) {
+        amountStr = amountStr + ".00";
+    }
 
     return res.json({
       success: true,
       utr: finalUtr,
-      amount: cleanedAmount,
+      amount: amountStr,
       userId: userId || "N/A",
       debug: rawResult 
     });
@@ -55,4 +55,4 @@ app.post("/api/scan", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Master Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
