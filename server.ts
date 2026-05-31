@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
 
@@ -27,24 +26,27 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // Regex দিয়ে UTR এবং Amount বের করা
-    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction)[:\s]*([A-Z0-9]{10,25})/i);
-    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs)[:\s]*([0-9,]+(?:\.[0-9]{2})?)/i);
+    // 🎯 মাস্টার Regex লজিক
+    
+    // ১. UTR: যেকোনো ১২ থেকে ২০ ডিজিটের সংখ্যা খুঁজবে (যেখানে UTR বা Ref বা Txn লেখা থাকতে পারে)
+    const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction|Reference)[:\s\n]*(\d{12,20})/i);
+    
+    // ২. Amount: Amount/Total/Rs/INR/₹ এর পরে থাকা সংখ্যা (যেমন: 500.00 বা 1,500.00)
+    const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs|Paid|Amt|₹)[:\s\n]*([\d,]+\.\d{2})/i);
 
     const finalUtr = utrMatch ? utrMatch[1] : "NOT_FOUND";
     const finalAmount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0";
 
-    // 🎯 এটিই সবচেয়ে গুরুত্বপূর্ণ: ফ্রন্টএন্ড যা যা খুঁজছে সব দিচ্ছি
+    // 🎯 ফ্রন্টএন্ডের সব শর্ত পূরণ করা রেসপন্স
     return res.json({
-      success: true, // ফ্রন্টএন্ডের ইফ-কন্ডিশন পাস করার জন্য এটা বাধ্যতামূলক
+      success: true,
       utr: finalUtr,
       amount: finalAmount,
       userId: userId || "N/A",
-      debug: rawResult
+      debug: rawResult // ফ্রন্টএন্ডে বা লগে দেখতে পারবে OCR কী পড়েছে
     });
 
   } catch (error: any) {
-    console.error("Backend Error:", error);
     return res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -53,4 +55,4 @@ app.post("/api/scan", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Master Server running on port ${PORT}`));
