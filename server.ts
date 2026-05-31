@@ -5,19 +5,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
 
-// The endpoint for your OCR scanning
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
 app.post("/api/scan", async (req, res) => {
   try {
-    const { image, userId } = req.body;
-
-    if (!image) {
-      return res.status(400).json({ success: false, error: "Image missing" });
-    }
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ success: false, error: "Image missing" });
 
     const base64Image = image.includes(",") ? image.split(",")[1] : image;
-
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,29 +22,32 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 1. Extract UTR: Looking for 12 to 20 digit numbers
-    const allIds = rawResult.match(/\b\d{12,20}\b/g) || [];
-    const finalUtr = allIds.length > 0 ? allIds.sort((a, b) => b.length - a.length)[0] : "NOT_FOUND";
+    // 1. UTR: Find the longest sequence of 12-20 digits
+    const utrMatch = rawResult.match(/\b\d{12,20}\b/);
+    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
 
-    // 2. Extract Amount: Finding all decimal numbers and picking the largest one
-    const allNumbers = rawResult.match(/[\d,]+\.\d{1,2}/g) || [];
-    const finalAmount = allNumbers.length > 0 
-      ? allNumbers
-          .map(n => parseFloat(n.replace(/,/g, '')))
-          .sort((a, b) => b - a)[0]
-          .toFixed(2)
-      : "0.00";
+    // 2. Amount: Intelligent extraction
+    // Finds numbers that look like currency (e.g., 500.00, 1,200.50)
+    // Then filters them to find the most probable transaction amount
+    const amountPatterns = rawResult.match(/[\d,]+\.\d{1,2}/g) || [];
+    let finalAmount = "0.00";
+
+    if (amountPatterns.length > 0) {
+      // Sort numbers to find the most significant one
+      const parsedAmounts = amountPatterns.map(n => parseFloat(n.replace(/,/g, '')));
+      // We assume the largest decimal number in a payment slip is the transaction amount
+      const maxVal = Math.max(...parsedAmounts);
+      finalAmount = maxVal.toFixed(2);
+    }
 
     return res.json({
       success: true,
       utr: finalUtr,
       amount: finalAmount,
-      userId: userId || "N/A",
-      debug: rawResult
+      debug: rawResult // VERY IMPORTANT: Check this in your logs
     });
 
   } catch (error: any) {
-    console.error("Processing Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
