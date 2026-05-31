@@ -22,19 +22,25 @@ app.post("/api/scan", async (req, res) => {
     const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // 1. UTR: Searching for the exact 12-20 digit transaction ID
-    const utrMatch = rawResult.match(/\b\d{12,20}\b/);
-    const finalUtr = utrMatch ? utrMatch[0] : "NOT_FOUND";
+    // 1. UTR: Searching for 12 to 20 digits.
+    // If multiple found, pick the one that is most likely the UTR based on standard length.
+    const utrMatches = rawResult.match(/\b\d{12,20}\b/g) || [];
+    const finalUtr = utrMatches.length > 0 ? utrMatches[utrMatches.length - 1] : "NOT_FOUND";
 
-    // 2. Amount: Searching for patterns like 500.00, 1,200.00, 5000 etc
-    // We look for patterns that don't look like dates (e.g., ignoring 31.05.2026)
-    const allNumbers = rawResult.match(/\d{1,3}(?:,\d{3})*\.\d{2}/g) || [];
+    // 2. Amount: Searching for any number that looks like a currency amount.
+    // Logic: It must have at least one digit, optional comma, and mandatory two decimal places.
+    const allNumbers = rawResult.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
     
     let finalAmount = "0.00";
     if (allNumbers.length > 0) {
-      // Logic: Transaction amount is usually the largest number with two decimal places
-      const parsedAmounts = allNumbers.map(n => parseFloat(n.replace(/,/g, '')));
-      finalAmount = Math.max(...parsedAmounts).toFixed(2);
+      // Logic: Pick the largest number found that looks like an amount.
+      const parsedAmounts = allNumbers
+        .map(n => parseFloat(n.replace(/,/g, '')))
+        .filter(n => n > 0);
+      
+      if (parsedAmounts.length > 0) {
+        finalAmount = Math.max(...parsedAmounts).toFixed(2);
+      }
     }
 
     return res.json({
@@ -45,9 +51,9 @@ app.post("/api/scan", async (req, res) => {
     });
 
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: "Processing Error" });
+    return res.status(500).json({ success: false, error: "Error processing the slip" });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
