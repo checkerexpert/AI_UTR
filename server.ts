@@ -41,8 +41,8 @@ app.post('/api/scan', async (req, res) => {
     const imgData = req.body.image.split(',')[1];
     if (!imgData) throw new Error("Invalid image data");
 
-    // প্রম্পটটিকে একদম স্পেসিফিক করা হলো যাতে ইমেজের সব টেক্সট সে আগে বের করে
-    const prompt = 'Analyze this payment receipt image carefully. Read and extract all text content step-by-step, especially looking for Reference Numbers, Transaction IDs, UTR, and Indian Rupee Currency amounts. Return the raw text.';
+    // জেমিনিকে ইমেজের ভেতরের সব লেখা হুবহু বের করতে বাধ্য করার প্রম্পট
+    const prompt = 'Perform OCR on this image. Read every single word, number, and character from top to bottom. Output the complete extracted text exactly as it appears in the image.';
     
     let result = await tryGeminiScan('gemini-2.5-flash', key, imgData, prompt);
     
@@ -58,37 +58,29 @@ app.post('/api/scan', async (req, res) => {
       throw new Error("No response from Gemini models");
     }
 
-    const rawText = result.candidates[0].content.parts[0].text;
+    const rawText = result.candidates[0].content.parts[0].text || "";
     
-    // --- ৫-স্টেপ ওয়াটারফল ফিল্টারিং লজিক ---
+    // --- ডেটা খোঁজার রেগুলার এক্সপ্রেশন (Regex) ---
     let utr = "";
     let amount = "";
 
-    // ১. UTR খোঁজার জন্য নিখুঁত রেগুলার এক্সপ্রেশন (১২ ডিজিটের সংখ্যা)
-    const utrRegex = /(?:utr|ref|reference|txnid|transaction\s*id)[:\s\-#]*([0-9]{12})/i;
-    const utrMatch = rawText.match(utrRegex);
-    
-    if (utrMatch && utrMatch[1]) {
-      utr = utrMatch[1];
-    } else {
-      // ব্যাকআপ: যদি স্পেসিফিক ট্যাগ না থাকে, তবে ইমেজে থাকা যেকোনো ১২ ডিজিটের সংখ্যাকে UTR ধরবে
-      const genericUtrMatch = rawText.match(/\b[0-9]{12}\b/);
-      if (genericUtrMatch) utr = genericUtrMatch[0];
+    // ১২ ডিজিটের ইউটিআর খোঁজার জন্য প্যাটার্ন (কোনো স্পেস ছাড়া বা ড্যাশ সহ)
+    const utrMatch = rawText.match(/\b\d{12}\b/) || rawText.match(/(?:utr|ref|reference|txn|trans)[:\s\-#]*(\d+)/i);
+    if (utrMatch) {
+      utr = utrMatch[1] || utrMatch[0];
     }
 
-    // ২. Amount খোঁজার লজিক (টাকা বা রুপি সাইন সহ সংখ্যা)
-    const amountRegex = /(?:amount|amt|paid|total|₹|rs\.?)[:\s\-#]*([0-9,]+\.?[0-9]*)/i;
-    const amountMatch = rawText.match(amountRegex);
-    
+    // অ্যামাউন্ট খোঁজার জন্য প্যাটার্ন (টাকা বা রুপির সংখ্যা)
+    const amountMatch = rawText.match(/(?:amount|amt|paid|total|₹|rs\.?)[:\s\-#]*([0-9,]+\.?[0-9]*)/i);
     if (amountMatch && amountMatch[1]) {
-      // কমা বা স্পেস থাকলে তা ক্লিন করে শুধু পিওর নাম্বার রাখা হচ্ছে
       amount = amountMatch[1].replace(/,/g, '').trim();
     }
 
-    // যদি ফ্রন্টএন্ডে পাঠানোর জন্য JSON অবজেক্ট রেডি করি
+    // যদি ইউটিআর এবং অ্যামাউন্ট মেইন ফিল্টারে না পাওয়া যায়, তবে আমরা ফ্রন্টএন্ডে rawText সহ পাঠাবো
     const responseData = {
       utr: utr || "NOT_FOUND",
-      amount: amount || "NOT_FOUND"
+      amount: amount || "NOT_FOUND",
+      debugRawText: rawText // ফ্রন্টএন্ডে পুরো টেক্সটটা দেখার জন্য ব্যাকআপ
     };
 
     res.json({ success: true, data: responseData });
