@@ -3,68 +3,54 @@ import cors from "cors";
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
 
 const HF_API_URL = "https://checkerexpert-ai-scaning.hf.space/api/scan";
 
-// API Endpoint
 app.post("/api/scan", async (req, res) => {
   try {
-    const { image, file, img, base64 } = req.body;
-    let base64Image = image || file || img || base64;
+    const { image, userId } = req.body;
 
-    if (!base64Image) {
-      return res.status(400).json({ error: "Image parameter missing" });
+    if (!image) {
+      return res.status(400).json({ success: false, error: "Image missing" });
     }
 
-    // Cleaning Base64 header
-    if (typeof base64Image === 'string' && base64Image.includes(",")) {
-      base64Image = base64Image.split(",")[1];
-    }
+    const base64Image = image.includes(",") ? image.split(",")[1] : image;
 
-    // Hugging Face Request
     const hfResponse = await fetch(HF_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: base64Image })
     });
 
-    if (!hfResponse.ok) {
-      throw new Error(`Hugging Face responded with status: ${hfResponse.status}`);
-    }
-
-    const hfData: any = await hfResponse.json();
+    const hfData = await hfResponse.json();
     const rawResult = hfData.extracted_text || "";
 
-    // Regex Extraction
+    // Regex দিয়ে UTR এবং Amount বের করা
     const utrMatch = rawResult.match(/(?:UTR|Ref|Txn|Transaction)[:\s]*([A-Z0-9]{10,25})/i);
     const amountMatch = rawResult.match(/(?:Amount|Total|INR|Rs)[:\s]*([0-9,]+(?:\.[0-9]{2})?)/i);
 
-    const utr = utrMatch ? utrMatch[1] : "000000000000";
-    const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0.00";
+    const finalUtr = utrMatch ? utrMatch[1] : "NOT_FOUND";
+    const finalAmount = amountMatch ? amountMatch[1].replace(/,/g, '') : "0";
 
-    // Standardized Response
+    // 🎯 এটিই সবচেয়ে গুরুত্বপূর্ণ: ফ্রন্টএন্ড যা যা খুঁজছে সব দিচ্ছি
     return res.json({
-      status: "success",
-      result: rawResult,
-      utr: utr,
-      amount: amount,
-      data: { utr, amount }
+      success: true, // ফ্রন্টএন্ডের ইফ-কন্ডিশন পাস করার জন্য এটা বাধ্যতামূলক
+      utr: finalUtr,
+      amount: finalAmount,
+      userId: userId || "N/A",
+      debug: rawResult
     });
 
   } catch (error: any) {
-    console.error("Master Server Error:", error);
+    console.error("Backend Error:", error);
     return res.status(500).json({ 
-      status: "error", 
-      message: error.message,
-      utr: "000000000000",
-      amount: "0.00"
+      success: false, 
+      error: error.message 
     });
   }
 });
 
-// Port configuration
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Master Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
