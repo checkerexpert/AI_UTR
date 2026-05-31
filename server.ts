@@ -4,6 +4,7 @@ const app = express();
 
 // CORS ম্যানুয়াল হেডার (যা অলরেডি সাকসেসফুলি কানেক্ট হচ্ছে)
 app.use((req, res, next) => {
+  res.setHeader("Access-Control-Origin", "*");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -15,6 +16,26 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 
+// গুগলে হিট করার জন্য একটি জেনেনিক ফাংশন
+async function tryGeminiScan(modelName: string, key: string, imgData: string, prompt: string) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: 'image/jpeg', data: imgData } }
+          ]
+        }]
+      })
+    }
+  );
+  return await response.json();
+}
+
 app.post('/api/scan', async (req, res) => {
   try {
     const key = process.env.GEMINI_API_KEY;
@@ -24,36 +45,16 @@ app.post('/api/scan', async (req, res) => {
     if (!imgData) throw new Error("Invalid image data");
 
     const prompt = 'Extract UTR and Amount. Return ONLY JSON like {"utr": "value", "amount": "value"}';
+    
+    // ১. প্রথমে লেটেস্ট gemini-2.5-flash ট্রাই করবে
+    let result = await tryGeminiScan('gemini-2.5-flash', key, imgData, prompt);
+    
+    // ২. যদি ২৪০৪ বা অন্য এরর দেয়, তবে ব্যাকআপ মডেল gemini-1.5-pro ট্রাই করবে
+    if (result.error) {
+      console.log("Switching to backup model due to error:", result.error.message);
+      result = await tryGeminiScan('gemini-1.5-pro', key, imgData, prompt);
+    }
 
-    // আমরা এখানে v1beta থেকে v1 এ শিফট করলাম এবং মডেলটি 'gemini-1.5-flash' রাখলাম যা v1 ইউআরএল-এ সাপোর্ট করে
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: imgData
-                  }
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
-
-    const result: any = await response.json();
-
-    // গুগলের পাঠানো এরর ডিবাগ করার জন্য
     if (result.error) {
       throw new Error(`Google API Error: ${result.error.message}`);
     }
